@@ -84,10 +84,10 @@ router.post('/mywallet', async (req, res) => {
             })
             res.send(updatedRow.data)
         } catch (e) {
-            res.status(400).send(e)
+            res.status(500).send({ error: 'Cannot updated' })
         }
     } catch (e) {
-        res.status(500).send({ error: 'Please, provide Apikey, Secret, Google Sheet ID' })
+        res.status(400).send({ error: 'Please, provide Apikey, Secret, Google Sheet ID' })
     }
 })
 
