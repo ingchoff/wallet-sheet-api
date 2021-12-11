@@ -6,6 +6,7 @@ const { GoogleAuth } = require('google-auth-library')
 const router = new express.Router()
 
 const auth = new GoogleAuth({
+    // keyFile: 'credentials.json',
     credentials: {
         client_email: process.env.GOOGLE_EMAIL,
         private_key: process.env.GOOGLE_KEY.replace(/\\n/g, '\n')
@@ -25,7 +26,7 @@ router.get('/', async (req, res) => {
     })
 })
 
-router.post('/mywallet', async (req, res) => {
+router.post('/api/mywallet', async (req, res) => {
     const ts = Date.now()
     const data = {
         ts,
@@ -82,7 +83,11 @@ router.post('/mywallet', async (req, res) => {
                     values
                 }
             })
-            res.send(updatedRow.data)
+            const _sheetId = updatedRow.data.spreadsheetId
+            res.send({
+                status: 'sheet updated!',
+                description: `Your sheet url: https://docs.google.com/spreadsheets/d/${_sheetId}`
+            })
         } catch (e) {
             res.status(500).send({ error: 'Cannot updated' })
         }

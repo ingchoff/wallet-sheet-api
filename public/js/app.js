@@ -12,7 +12,7 @@ weatherForm.addEventListener('submit', (e) => {
     messageOne.textContent = 'Loading...'
     messageTwo.textContent = ''
 
-    fetch('/mywallet', {
+    fetch('/api/mywallet', {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json'
@@ -27,12 +27,8 @@ weatherForm.addEventListener('submit', (e) => {
             if (data.error) {
                 messageOne.textContent = data.error
             } else {
-                const sheetId = data.spreadsheetId
-                messageOne.textContent = 'sheet updated!'
-                messageTwo.textContent = `Your sheet url: https://docs.google.com/spreadsheets/d/${sheetId}`
-                _apikey.value = ''
-                _secret.value = ''
-                _sheetid.value = ''
+                messageOne.textContent = data.status
+                messageTwo.textContent = data.description
             }
         })
     })
