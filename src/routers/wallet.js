@@ -8,7 +8,7 @@ const router = new express.Router()
 const auth = new GoogleAuth({
     credentials: {
         client_email: process.env.GOOGLE_EMAIL,
-        private_key: process.env.GOOGLE_KEY
+        private_key: process.env.GOOGLE_KEY.replace(/\\n/g, '\n')
     },
     scopes: 'https://www.googleapis.com/auth/spreadsheets'
 })
