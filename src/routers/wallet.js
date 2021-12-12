@@ -112,63 +112,80 @@ router.post('/api/mywallet/transaction', async (req, res) => {
                 "x-btk-apikey": req.body.apiKey
             }
         })
-        const filtered = Object.entries(currentBalance.data.result).filter(([key, value]) => value !== 0 && key !== 'THB')
-        const values = [['Date', 'Amount', 'Currency', 'Ending Balance', 'Type', 'Description', 'TXID']]
-        filtered.forEach( async (currency) => {
-            const sym = `THB_${currency[0]}`
+        const spreadsheetId = req.body.spreadsheetId
+        const filtered = []
+        const dataBalance = currentBalance.data.result
+        Object.keys(dataBalance).forEach((currency) => {
+            if (dataBalance[currency] !== 0 && currency !== 'THB') {
+                filtered.push(currency)
+            }
+        })
+        try {
+            await googleSheets.spreadsheets.values.update({
+            auth,
+            spreadsheetId,
+            range: `api!A:G`,
+            valueInputOption: "USER_ENTERED",
+            resource: {
+                    values: [['Date', 'Amount', 'Currency', 'Ending Balance', 'Type', 'Description', 'TXID']]
+                }
+            })
+        } catch (e) {
+            res.status(400).send({ error: 'spreadsheetId incorrect' })
+        }
+        let sindex = 0
+        let eindex = 1
+        const sorted = filtered.sort()
+        sorted.forEach(async (currency) => {
+            let values = []
+            const sym = `THB_${currency}`
             const bodyTrans = {
                 ts,
                 sym,
                 start,
                 end: ts
             }
-            try {
-                const hexTrans = crypto.createHmac('sha256', req.body.secret).update(JSON.stringify(bodyTrans)).digest('hex')
-                const wallet = await axios.post('https://api.bitkub.com/api/market/my-order-history', {
-                    ts: ts,
-                    sym,
-                    start,
-                    end: ts,
-                    sig: hexTrans
+            const hexTrans = crypto.createHmac('sha256', req.body.secret).update(JSON.stringify(bodyTrans)).digest('hex')
+            const transaction = await axios.post('https://api.bitkub.com/api/market/my-order-history', {
+                ts: ts,
+                sym,
+                start,
+                end: ts,
+                sig: hexTrans
+            }
+            , {
+                headers: {
+                    "x-btk-apikey": req.body.apiKey
                 }
-                , {
-                    headers: {
-                        "x-btk-apikey": req.body.apiKey
+            })
+            const arrayData = transaction.data.result
+            arrayData.forEach((data) => {
+                let description = `${data.side} ${data.amount} ${currency} @ ${data.rate}`
+                values.push([data.date, data.amount, currency, 0, data.side, description, data.txn_id])
+            })
+            console.log(values.length)
+            sindex = eindex + 1
+            eindex += values.length
+            console.log(sindex + ' : ' + eindex)
+            try {
+                await googleSheets.spreadsheets.values.update({
+                auth,
+                spreadsheetId,
+                range: `api!A${sindex}:G${eindex}`,
+                valueInputOption: "USER_ENTERED",
+                resource: {
+                        values
                     }
                 })
-                const arrayData = wallet.data.result
-                // const rowData = await googleSheets.spreadsheets.values.get({
-                //     auth,
-                //     spreadsheetId,
-                //     range: 'api!A:G'
-                // })
-                arrayData.forEach((data) => {
-                    let description = `${data.side} ${data.amount} ${currency[0]} @ ${data.rate}`
-                    values.push([data.date, data.amount, currency[0], 0, data.side, description, data.txn_id])
-                })
             } catch (e) {
-                res.status(403).send({ error: 'apikey or secretkey incorrect' })
+                res.status(400).send({ error: 'spreadsheetId incorrect' })
             }
         })
-        try {
-            const spreadsheetId = req.body.spreadsheetId
-            const updatedRow = await googleSheets.spreadsheets.values.update({
-            auth,
-            spreadsheetId,
-            range: "api!A:G",
-            valueInputOption: "USER_ENTERED",
-            resource: {
-                    values
-                }
-            })
-            const _sheetId = updatedRow.data.spreadsheetId
-            res.send({
-                status: 'sheet updated!',
-                description: `Your sheet url: https://docs.google.com/spreadsheets/d/${_sheetId}`
-            })
-        } catch (e) {
-            res.status(400).send({ error: 'spreadsheetId incorrect' })
-        }
+        const _sheetId = spreadsheetId
+        res.send({
+            status: 'sheet updated!',
+            description: `Your sheet url: https://docs.google.com/spreadsheets/d/${_sheetId}`
+        })
     } catch (e) {
         res.status(403).send({ error: 'apikey or secretkey  incorrect' })
     }
