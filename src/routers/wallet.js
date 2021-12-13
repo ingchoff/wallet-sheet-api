@@ -1,23 +1,8 @@
 const express = require('express')
 const crypto = require('crypto')
 const axios = require('axios').default
-const { google } = require('googleapis')
-const { GoogleAuth } = require('google-auth-library')
 const router = new express.Router()
-
-const auth = new GoogleAuth({
-    // keyFile: 'credentials.json',
-    credentials: {
-        client_email: process.env.GOOGLE_EMAIL,
-        private_key: process.env.GOOGLE_KEY.replace(/\\n/g, '\n')
-    },
-    scopes: 'https://www.googleapis.com/auth/spreadsheets'
-})
-const client = auth.getClient()
-const googleSheets = google.sheets({
-    version: "v4",
-    auth: client
-})
+const auth = require('../middleware/googleauth')
 
 router.get('/', async (req, res) => {
     res.render('index', {
@@ -26,7 +11,7 @@ router.get('/', async (req, res) => {
     })
 })
 
-router.post('/api/mywallet', async (req, res) => {
+router.post('/api/mywallet', auth, async (req, res) => {
     const ts = Date.now()
     const data = {
         ts,
@@ -69,8 +54,8 @@ router.post('/api/mywallet', async (req, res) => {
             
         })
         try {
-            const updatedRow = await googleSheets.spreadsheets.values.update({
-            auth,
+            const updatedRow = await req.googlesheet.spreadsheets.values.update({
+            auth: req.auth ,
             spreadsheetId,
             range: "api!A:D",
             valueInputOption: "USER_ENTERED",
@@ -91,7 +76,7 @@ router.post('/api/mywallet', async (req, res) => {
     }
 })
 
-router.post('/api/mywallet/transaction', async (req, res) => {
+router.post('/api/mywallet/transaction', auth, async (req, res) => {
     const ts = Date.now()
     const date = new Date()
     const year = date.getFullYear()
@@ -121,8 +106,8 @@ router.post('/api/mywallet/transaction', async (req, res) => {
             }
         })
         try {
-            await googleSheets.spreadsheets.values.update({
-            auth,
+            await req.googlesheet.spreadsheets.values.update({
+            auth: req.auth,
             spreadsheetId,
             range: `api!A:G`,
             valueInputOption: "USER_ENTERED",
@@ -168,8 +153,8 @@ router.post('/api/mywallet/transaction', async (req, res) => {
             eindex += values.length
             console.log(sindex + ' : ' + eindex)
             try {
-                await googleSheets.spreadsheets.values.update({
-                auth,
+                await req.googlesheet.spreadsheets.values.update({
+                auth: req.auth,
                 spreadsheetId,
                 range: `api!A${sindex}:G${eindex}`,
                 valueInputOption: "USER_ENTERED",
