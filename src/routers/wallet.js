@@ -44,14 +44,13 @@ router.post('/api/mywallet', auth, async (req, res) => {
         })
         // console.log(filtered)
         filtered.forEach((data) => {
-            if (data[0] === 'THB') {
+            if (!newObjTicker[data[0]]) {
                 let rowData = [data[0], data[1], '', data[1]]
                 values.push(rowData)
             } else {
                 let rowData = [data[0], data[1], newObjTicker[data[0]].last, data[1]*newObjTicker[data[0]].last]
                 values.push(rowData)
             }
-            
         })
         try {
             const updatedRow = await req.googlesheet.spreadsheets.values.update({
