@@ -145,12 +145,16 @@ router.post('/api/mywallet/transaction', auth, async (req, res) => {
             const arrayData = transaction.data.result
             arrayData.forEach((data) => {
                 let description = `${data.side} ${data.amount} ${currency} @ ${data.rate}`
-                values.push([data.date, data.amount, currency, 0, data.side, description, data.txn_id])
+                if (data.side === 'sell') {
+                    values.push([data.date, -data.amount, currency, 0, data.side, description, data.txn_id])
+                } else {
+                    values.push([data.date, data.amount, currency, 0, data.side, description, data.txn_id])
+                }
             })
-            console.log(values.length)
+            // console.log(values.length)
             sindex = eindex + 1
             eindex += values.length
-            console.log(sindex + ' : ' + eindex)
+            // console.log(sindex + ' : ' + eindex)
             try {
                 await req.googlesheet.spreadsheets.values.update({
                 auth: req.auth,
