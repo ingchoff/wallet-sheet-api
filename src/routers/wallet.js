@@ -126,15 +126,10 @@ router.post('/api/mywallet/transaction', auth, async (req, res) => {
             const bodyTrans = {
                 ts,
                 sym,
-                start,
-                end: ts
             }
             const hexTrans = crypto.createHmac('sha256', req.body.secret).update(JSON.stringify(bodyTrans)).digest('hex')
             const transaction = await axios.post('https://api.bitkub.com/api/market/my-order-history', {
-                ts: ts,
-                sym,
-                start,
-                end: ts,
+                ...bodyTrans,
                 sig: hexTrans
             }
             , {
