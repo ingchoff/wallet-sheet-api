@@ -3,6 +3,7 @@ const crypto = require('crypto');
 const axios = require('axios').default;
 const router = new express.Router();
 const auth = require('../middleware/googleauth');
+const moment = require('moment');
 
 router.get('/', async (req, res) => {
   res.render('index', {
@@ -13,7 +14,6 @@ router.get('/', async (req, res) => {
 
 router.post('/api/mywallet', auth, async (req, res) => {
   const ts = await axios.get('https://api.bitkub.com/api/v3/servertime');
-  console.log(ts.data);
   const data = `${ts.data}POST/api/v3/market/wallet{}`;
   const hex = crypto
     .createHmac('sha256', req.body.secret)
@@ -46,7 +46,6 @@ router.post('/api/mywallet', auth, async (req, res) => {
       const currency = key.split('_');
       newObjTicker[currency[1]] = tickerData[key];
     });
-    console.log(newObjTicker);
     filtered.forEach((data) => {
       if (!newObjTicker[data[0]]) {
         let rowData = [data[0], data[1], '', data[1]];
@@ -88,145 +87,141 @@ router.post('/api/mywallet', auth, async (req, res) => {
 });
 
 router.post('/api/mywallet/transaction', auth, async (req, res) => {
-  const ts = Date.now();
+  const totalData = [];
   const date = new Date();
   const year = date.getFullYear();
   const month = date.getMonth();
   const day = date.getDay();
   const start = new Date(year, month - 1, day).getTime() / 1000;
-  const bodyBalance = {
-    ts,
-  };
-  const hexBalance = crypto
+  const ts = await axios.get('https://api.bitkub.com/api/v3/servertime');
+  const end = ts.data;
+  const data = `${ts.data}POST/api/v3/market/wallet{}`;
+  const hex = crypto
     .createHmac('sha256', req.body.secret)
-    .update(JSON.stringify(bodyBalance))
+    .update(data)
     .digest('hex');
+  const headers = {
+    Accept: 'application/json',
+    'Content-Type': 'application/json',
+    'X-BTK-APIKEY': req.body.apiKey,
+    'X-BTK-TIMESTAMP': ts.data,
+    'X-BTK-SIGN': hex,
+  };
+  const currentBalance = await axios.post(
+    'https://api.bitkub.com/api/v3/market/wallet',
+    {},
+    {
+      headers: headers,
+    }
+  );
+  const spreadsheetId = req.body.spreadsheetId;
+  const filtered = [];
+  const dataBalance = currentBalance.data.result;
+  Object.keys(dataBalance).forEach((currency) => {
+    if (dataBalance[currency] !== 0 && currency !== 'THB') {
+      filtered.push(currency);
+    }
+  });
+  filtered.push('BTC');
   try {
-    const currentBalance = await axios.post(
-      'https://api.bitkub.com/api/market/wallet',
-      {
-        ts,
-        sig: hexBalance,
+    await req.googlesheet.spreadsheets.values.update({
+      auth: req.auth,
+      spreadsheetId,
+      range: `api!A:G`,
+      valueInputOption: 'USER_ENTERED',
+      resource: {
+        values: [
+          [
+            'Date',
+            'Amount',
+            'Currency',
+            'Ending Balance',
+            'Type',
+            'Description',
+            'TXID',
+          ],
+        ],
       },
+    });
+  } catch (e) {
+    res.status(400).send({ error: 'spreadsheetId incorrect' });
+  }
+  let sindex = 0;
+  let eindex = 1;
+  const sorted = filtered.sort();
+  console.log(sorted);
+  for (let i in sorted) {
+    let values = [];
+    const sym = `${sorted[i]}_THB`;
+    const sig = `${ts.data}GET/api/v3/market/my-order-history?sym=${sym}&start=${start}&end=${end}`;
+    const hexTrans = crypto
+      .createHmac('sha256', req.body.secret)
+      .update(sig)
+      .digest('hex');
+    const transaction = await axios.get(
+      `https://api.bitkub.com/api/v3/market/my-order-history?sym=${sym}&start=${start}&end=${end}`,
       {
         headers: {
-          'x-btk-apikey': req.body.apiKey,
+          Accept: 'application/json',
+          'Content-Type': 'application/json',
+          'X-BTK-APIKEY': req.body.apiKey,
+          'X-BTK-TIMESTAMP': ts.data,
+          'X-BTK-SIGN': hexTrans,
         },
       }
     );
-    const spreadsheetId = req.body.spreadsheetId;
-    const filtered = [];
-    const dataBalance = currentBalance.data.result;
-    Object.keys(dataBalance).forEach((currency) => {
-      if (dataBalance[currency] !== 0 && currency !== 'THB') {
-        filtered.push(currency);
+    const arrayData = transaction.data.result;
+    totalData.push(arrayData);
+    for (let x in arrayData) {
+      if (arrayData) {
+        let description = `${arrayData[x].side} ${arrayData[x].amount} ${sorted[i]} @ ${arrayData[x].rate}`;
+        if (arrayData[x].side === 'sell') {
+          values.push([
+            moment(arrayData[x].ts).format('D/MM/YYYY'),
+            -arrayData[x].amount,
+            sorted[i],
+            0,
+            arrayData[x].side,
+            description,
+            arrayData[x].txn_id,
+          ]);
+        } else {
+          values.push([
+            moment(arrayData[x].ts).format('D/MM/YYYY'),
+            arrayData[x].amount,
+            sorted[i],
+            0,
+            arrayData[x].side,
+            description,
+            arrayData[x].txn_id,
+          ]);
+        }
       }
-    });
+    }
+    console.log(values.length);
+    sindex = eindex + 1;
+    eindex += values.length;
+    console.log(sindex + ' : ' + eindex);
     try {
       await req.googlesheet.spreadsheets.values.update({
         auth: req.auth,
         spreadsheetId,
-        range: `api!A:G`,
+        range: `api!A${sindex}:G${eindex}`,
         valueInputOption: 'USER_ENTERED',
         resource: {
-          values: [
-            [
-              'Date',
-              'Amount',
-              'Currency',
-              'Ending Balance',
-              'Type',
-              'Description',
-              'TXID',
-            ],
-          ],
+          values,
         },
       });
     } catch (e) {
       res.status(400).send({ error: 'spreadsheetId incorrect' });
     }
-    let sindex = 0;
-    let eindex = 1;
-    const sorted = filtered.sort();
-    sorted.forEach(async (currency) => {
-      let values = [];
-      const sym = `THB_${currency}`;
-      const bodyTrans = {
-        ts,
-        sym,
-        start,
-        end: ts,
-      };
-      const hexTrans = crypto
-        .createHmac('sha256', req.body.secret)
-        .update(JSON.stringify(bodyTrans))
-        .digest('hex');
-      const transaction = await axios.post(
-        'https://api.bitkub.com/api/market/my-order-history',
-        {
-          ts: ts,
-          sym,
-          start,
-          end: ts,
-          sig: hexTrans,
-        },
-        {
-          headers: {
-            'x-btk-apikey': req.body.apiKey,
-          },
-        }
-      );
-      const arrayData = transaction.data.result;
-      arrayData.forEach((data) => {
-        let description = `${data.side} ${data.amount} ${currency} @ ${data.rate}`;
-        if (data.side === 'sell') {
-          values.push([
-            data.date,
-            -data.amount,
-            currency,
-            0,
-            data.side,
-            description,
-            data.txn_id,
-          ]);
-        } else {
-          values.push([
-            data.date,
-            data.amount,
-            currency,
-            0,
-            data.side,
-            description,
-            data.txn_id,
-          ]);
-        }
-      });
-      // console.log(values.length)
-      sindex = eindex + 1;
-      eindex += values.length;
-      // console.log(sindex + ' : ' + eindex)
-      try {
-        await req.googlesheet.spreadsheets.values.update({
-          auth: req.auth,
-          spreadsheetId,
-          range: `api!A${sindex}:G${eindex}`,
-          valueInputOption: 'USER_ENTERED',
-          resource: {
-            values,
-          },
-        });
-      } catch (e) {
-        res.status(400).send({ error: 'spreadsheetId incorrect' });
-      }
-    });
-    const _sheetId = spreadsheetId;
-    res.send({
-      status: 'sheet updated!',
-      description: `Your sheet url: https://docs.google.com/spreadsheets/d/${_sheetId}`,
-    });
-  } catch (e) {
-    res.status(403).send({ error: 'apikey or secretkey  incorrect' });
   }
+  const _sheetId = spreadsheetId;
+  res.send({
+    status: 'sheet updated!',
+    description: `Your sheet url: https://docs.google.com/spreadsheets/d/${_sheetId}`,
+    data: totalData,
+  });
 });
 
 module.exports = router;
