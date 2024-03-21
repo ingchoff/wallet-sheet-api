@@ -37,8 +37,8 @@ router.post('/api/mywallet', auth, async (req, res) => {
     const balance = wallet.data.result;
     let values = [['Currency', 'Amount', 'Mkt_price', 'Baht']];
     const spreadsheetId = req.body.spreadsheetId;
-    const asArray = Object.entries(balance);
-    const filtered = asArray.filter(([key, value]) => value !== 0);
+    const asArray = Object.entries(balance).sort();
+    // const filtered = asArray.filter(([key, value]) => value !== 0);
     const ticker = await axios.get('https://api.bitkub.com/api/market/ticker');
     const tickerData = ticker.data;
     let newObjTicker = {};
@@ -46,7 +46,7 @@ router.post('/api/mywallet', auth, async (req, res) => {
       const currency = key.split('_');
       newObjTicker[currency[1]] = tickerData[key];
     });
-    filtered.forEach((data) => {
+    asArray.forEach((data) => {
       if (!newObjTicker[data[0]]) {
         let rowData = [data[0], data[1], '', data[1]];
         values.push(rowData);
@@ -92,7 +92,7 @@ router.post('/api/mywallet/transaction', auth, async (req, res) => {
   const year = date.getFullYear();
   const month = date.getMonth();
   const day = date.getDay();
-  const start = new Date(year, month - 1, day).getTime() / 1000;
+  const start = new Date(year, month - 1, day).getTime();
   const ts = await axios.get('https://api.bitkub.com/api/v3/servertime');
   const end = ts.data;
   const data = `${ts.data}POST/api/v3/market/wallet{}`;
@@ -122,7 +122,7 @@ router.post('/api/mywallet/transaction', auth, async (req, res) => {
       filtered.push(currency);
     }
   });
-  filtered.push('BTC');
+  filtered.push('BTC', 'ETH', 'ADA', 'BCH', 'BNB', 'BAND', 'NEAR', 'XRP');
   try {
     await req.googlesheet.spreadsheets.values.update({
       auth: req.auth,
@@ -149,7 +149,6 @@ router.post('/api/mywallet/transaction', auth, async (req, res) => {
   let sindex = 0;
   let eindex = 1;
   const sorted = filtered.sort();
-  console.log(sorted);
   for (let i in sorted) {
     let values = [];
     const sym = `${sorted[i]}_THB`;
@@ -198,10 +197,10 @@ router.post('/api/mywallet/transaction', auth, async (req, res) => {
         }
       }
     }
-    console.log(values.length);
+    // console.log(values.length);
     sindex = eindex + 1;
     eindex += values.length;
-    console.log(sindex + ' : ' + eindex);
+    // console.log(sindex + ' : ' + eindex);
     try {
       await req.googlesheet.spreadsheets.values.update({
         auth: req.auth,
