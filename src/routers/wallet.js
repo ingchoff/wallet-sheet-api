@@ -189,7 +189,7 @@ router.post('/api/mywallet/transaction', auth, async (req, res) => {
         let description = `${arrayData[x].side} ${arrayData[x].amount} ${sorted[i]} @ ${arrayData[x].rate}`;
         if (arrayData[x].side === 'sell') {
           values.push([
-            moment(arrayData[x].ts).format('D/MM/YYYY h:mm:ss A'),
+            moment(arrayData[x].ts).format('D/MM/YYYY kk:mm:ss'),
             -arrayData[x].amount,
             sorted[i],
             0,
@@ -199,7 +199,7 @@ router.post('/api/mywallet/transaction', auth, async (req, res) => {
           ]);
         } else {
           values.push([
-            moment(arrayData[x].ts).format('D/MM/YYYY h:mm:ss A'),
+            moment(arrayData[x].ts).format('D/MM/YYYY kk:mm:ss'),
             arrayData[x].amount,
             sorted[i],
             0,
