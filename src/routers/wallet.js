@@ -92,9 +92,13 @@ router.post('/api/mywallet/transaction', auth, async (req, res) => {
   const year = date.getFullYear();
   const month = date.getMonth();
   const day = date.getDay();
-  const start = new Date(year, month - 1, day).getTime();
+  let start = new Date(year, month - 1, day).getTime();
   const ts = await axios.get('https://api.bitkub.com/api/v3/servertime');
-  const end = ts.data;
+  let end = ts.data;
+  if (req.body.start && req.body.end) {
+    start = moment(req.body.start, 'YYYY/MM/DD').format('x');
+    end = moment(req.body.end, 'YYYY/MM/DD').add(1, 'days').format('x');
+  }
   const data = `${ts.data}POST/api/v3/market/wallet{}`;
   const hex = crypto
     .createHmac('sha256', req.body.secret)
@@ -123,6 +127,15 @@ router.post('/api/mywallet/transaction', auth, async (req, res) => {
     }
   });
   filtered.push('BTC', 'ETH', 'ADA', 'BCH', 'BNB', 'BAND', 'NEAR', 'XRP');
+  try {
+    await req.googlesheet.spreadsheets.values.clear({
+      auth: req.auth,
+      spreadsheetId,
+      range: `api!A:G`,
+    });
+  } catch (e) {
+    res.status(400).send({ error: 'spreadsheetId incorrect' });
+  }
   try {
     await req.googlesheet.spreadsheets.values.update({
       auth: req.auth,
