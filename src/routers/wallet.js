@@ -95,6 +95,10 @@ router.post('/api/mywallet/transaction', auth, async (req, res) => {
   let start = new Date(year, month - 1, day).getTime();
   const ts = await axios.get('https://api.bitkub.com/api/v3/servertime');
   let end = ts.data;
+  let lmt = 999;
+  if (req.body.lmt) {
+    lmt = req.body.lmt;
+  }
   if (req.body.start && req.body.end) {
     start = moment(req.body.start, 'YYYY/MM/DD').format('x');
     end = moment(req.body.end, 'YYYY/MM/DD').add(1, 'days').format('x');
@@ -165,13 +169,13 @@ router.post('/api/mywallet/transaction', auth, async (req, res) => {
   for (let i in sorted) {
     let values = [];
     const sym = `${sorted[i]}_THB`;
-    const sig = `${ts.data}GET/api/v3/market/my-order-history?sym=${sym}&start=${start}&end=${end}`;
+    const sig = `${ts.data}GET/api/v3/market/my-order-history?sym=${sym}&start=${start}&end=${end}&lmt=${lmt}`;
     const hexTrans = crypto
       .createHmac('sha256', req.body.secret)
       .update(sig)
       .digest('hex');
     const transaction = await axios.get(
-      `https://api.bitkub.com/api/v3/market/my-order-history?sym=${sym}&start=${start}&end=${end}`,
+      `https://api.bitkub.com/api/v3/market/my-order-history?sym=${sym}&start=${start}&end=${end}&lmt=${lmt}`,
       {
         headers: {
           Accept: 'application/json',
